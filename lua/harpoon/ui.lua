@@ -9,12 +9,14 @@ local Extensions = require("harpoon.extensions")
 ---@field ui_fallback_width? number used if we can't get the current window
 ---@field ui_width_ratio? number this is the ratio of the editor window to use
 ---@field ui_max_width? number this is the max width the window can be
+---@field context? any
 
 ---@return HarpoonToggleOptions
 local function toggle_config(config)
     return vim.tbl_extend("force", {
         ui_fallback_width = 69,
         ui_width_ratio = 0.62569,
+        context = nil,
     }, config or {})
 end
 
@@ -23,6 +25,7 @@ end
 ---@field bufnr number
 ---@field settings HarpoonSettings
 ---@field active_list HarpoonList
+---@field context any
 local HarpoonUI = {}
 
 ---@param list HarpoonList
@@ -71,6 +74,7 @@ function HarpoonUI:close_menu()
     self.active_list = nil
     self.win_id = nil
     self.bufnr = nil
+    self.context = nil
 
     self.closing = false
 end
@@ -128,7 +132,7 @@ function HarpoonUI:_create_window(toggle_opts)
 end
 
 ---@param list? HarpoonList
----TODO: @param opts? HarpoonToggleOptions
+---@param opts? HarpoonToggleOptions
 function HarpoonUI:toggle_quick_menu(list, opts)
     opts = toggle_config(opts)
     if list == nil or self.win_id ~= nil then
@@ -146,11 +150,15 @@ function HarpoonUI:toggle_quick_menu(list, opts)
     Logger:log("ui#toggle_quick_menu#opening", list and list.name)
     local win_id, bufnr = self:_create_window(opts)
 
+    -- TODO: I am not a huge fan of this temporal coupling, but I don't know a
+    -- better way ATM seems fine to me since we are also dong it for win_id,
+    -- bufnr, and active_list
+    self.context = opts.context
     self.win_id = win_id
     self.bufnr = bufnr
     self.active_list = list
 
-    local contents = self.active_list:display()
+    local contents = self.active_list:display(opts.context)
     vim.api.nvim_buf_set_lines(self.bufnr, 0, -1, false, contents)
 
     Extensions.extensions:emit(Extensions.event_names.UI_CREATE, {
@@ -167,7 +175,7 @@ function HarpoonUI:select_menu_item(options)
     -- must first save any updates potentially made to the list before
     -- navigating
     local list = Buffer.get_contents(self.bufnr)
-    self.active_list:resolve_displayed(list)
+    self.active_list:resolve_displayed(self.context, list)
 
     Logger:log(
         "ui#select_menu_item selecting item",
@@ -186,7 +194,7 @@ end
 function HarpoonUI:save()
     local list = Buffer.get_contents(self.bufnr)
     Logger:log("ui#save", list)
-    self.active_list:resolve_displayed(list)
+    self.active_list:resolve_displayed(self.context, list)
     if self.settings.sync_on_ui_close then
         require("harpoon"):sync()
     end
