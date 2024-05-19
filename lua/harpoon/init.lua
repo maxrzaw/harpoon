@@ -147,6 +147,7 @@ function Harpoon.setup(self, partial_config)
     ---@diagnostic disable-next-line: param-type-mismatch
     self.config = Config.merge_config(partial_config, self.config)
     self.ui:configure(self.config.settings)
+    self.data = Data.Data:new(self.config)
     self._extensions:emit(Extensions.event_names.SETUP_CALLED, self.config)
 
     ---TODO: should we go through every seen list and update its config?
