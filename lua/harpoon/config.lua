@@ -1,9 +1,10 @@
 local Extensions = require("harpoon.extensions")
 local Logger = require("harpoon.logger")
 local Utils = require("harpoon.utils")
+local Path = require("plenary.path")
 
 local function to_exact_name(value)
-    return "^" .. value .. "$"
+    return value .. "$"
 end
 
 local M = {}
@@ -20,7 +21,7 @@ M.DEFAULT_LIST = DEFAULT_LIST
 ---@field decode? (fun(obj: string): any)
 ---@field display? (fun(list_item: HarpoonListItem): string)
 ---@field select? (fun(list_item?: HarpoonListItem, list: HarpoonList, options: any?): nil)
----@field equals? (fun(list_line_a: HarpoonListItem, list_line_b: HarpoonListItem): boolean)
+---@field equals? (fun(list_item_a: HarpoonListItem, list_item_b: HarpoonListItem): boolean)
 ---@field create_list_item? fun(config: HarpoonPartialConfigItem, item: any?): HarpoonListItem
 ---@field BufLeave? fun(evt: any, list: HarpoonList): nil
 ---@field VimLeavePre? fun(evt: any, list: HarpoonList): nil
@@ -83,7 +84,7 @@ function M.get_default_config()
 
             ---@param list_item HarpoonListItem
             display = function(list_item)
-                return list_item.value
+                return Utils.normalize_path(list_item.value, vim.loop.cwd())
             end,
 
             --- the select function is called when a user selects an item from
@@ -181,33 +182,35 @@ function M.get_default_config()
             end,
 
             ---@param config HarpoonPartialConfigItem
-            ---@param name? any
+            ---@param item? any
             ---@return HarpoonListItem
-            create_list_item = function(config, name)
-                name = name
-                    or Utils.normalize_path(
-                        vim.api.nvim_buf_get_name(
-                            vim.api.nvim_get_current_buf()
-                        ),
-                        config.get_root_dir()
+            create_list_item = function(config, item)
+                if item == nil then
+                    item = vim.api.nvim_buf_get_name(
+                        vim.api.nvim_get_current_buf()
                     )
-
-                Logger:log("config_default#create_list_item", name)
-
-                local bufnr = vim.fn.bufnr(name, false)
-
-                local pos = { 1, 0 }
-                if bufnr ~= -1 then
-                    pos = vim.api.nvim_win_get_cursor(0)
                 end
 
-                return {
-                    value = name,
-                    context = {
-                        row = pos[1],
-                        col = pos[2],
-                    },
-                }
+                if type(item) == "string" then
+                    local name = Path:new(item):absolute()
+                    local bufnr = vim.fn.bufnr(name, false)
+
+                    local pos = { 1, 0 }
+                    if bufnr ~= -1 then
+                        pos = vim.api.nvim_win_get_cursor(0)
+                    end
+                    item = {
+                        value = name,
+                        context = {
+                            row = pos[1],
+                            col = pos[2],
+                        },
+                    }
+                end
+
+                Logger:log("config_default#create_list_item", item)
+
+                return item
             end,
 
             ---@param arg {buf: number}
