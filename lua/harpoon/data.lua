@@ -152,6 +152,15 @@ function Data:sync()
     pcall(write_data, data, self.config)
 end
 
+function Data:force_read()
+    local ok, data = pcall(read_data, self.config)
+    if not ok then
+        error("Harpoon: unable to read data, error reading data file")
+    end
+
+    self._data = data
+end
+
 M.Data = Data
 M.test = {
     set_fullpath = function(fp)
